@@ -67,6 +67,63 @@ def hill_climbing(func, D, lb, ub, iters=200, step_scale=0.1, seed=None):
     return x, fx, np.array(history)
 
 
+def simulated_annealing(func, D, lb, ub, iters=500, T0=1.0, alpha=0.99, seed=None):
+    """
+    Simulated Annealing (SA) algorithm for function minimization.
+    
+    Parameters:
+        func  : objective function to minimize
+        D     : problem dimension
+        lb, ub: lower and upper bounds (scalars or arrays)
+        iters : number of iterations
+        T0    : initial temperature
+        alpha : cooling rate (temperature decay)
+        seed  : random seed
+    Returns:
+        best_sol, best_fit, history
+    """
+    rnd = np.random.default_rng(seed)
+    
+    # Initialize solution randomly within bounds
+    x = rnd.uniform(lb, ub, D)
+    fx = func(x)
+    
+    # Record best solution
+    best = x.copy()
+    best_f = fx
+    history = [fx]
+    
+    T = T0  # initial temperature
+
+    for t in range(iters):
+        # Generate new candidate by random perturbation
+        x_new = x + rnd.normal(0, 0.1 * (ub - lb), D)
+        x_new = np.clip(x_new, lb, ub)
+        f_new = func(x_new)
+        
+        # Calculate energy difference
+        delta = f_new - fx
+
+        # Acceptance criterion:
+        # Always accept better solution;
+        # Accept worse solution with probability exp(-delta / T)
+        if delta < 0 or rnd.random() < np.exp(-delta / T):
+            x = x_new
+            fx = f_new
+        
+        # Update best if necessary
+        if fx < best_f:
+            best = x.copy()
+            best_f = fx
+        
+        # Cool down temperature
+        T *= alpha
+
+        history.append(best_f)
+    
+    return best, best_f, np.array(history)
+
+
 def genetic_algorithm(func, D, lb, ub, iters=200, pop_size=30, cx_rate=0.6, mut_rate=0.2, mut_sigma=0.1, seed=None):
     """
     Real-valued GA:
@@ -178,8 +235,10 @@ def run_experiment(func, func_name, D=10, lb=-5, ub=5, runs=20, iters=200):
     """
     algos = {
         'HillClimb': lambda seed: hill_climbing(func, D, lb, ub, iters=iters, step_scale=0.05, seed=seed),
+        'SA': lambda seed: simulated_annealing(func, D, lb, ub, iters=500, T0=1.0, alpha=0.99, seed=seed),
         'GA': lambda seed: genetic_algorithm(func, D, lb, ub, iters=iters, pop_size=30, cx_rate=0.7, mut_rate=0.3, mut_sigma=0.05, seed=seed),
-        'Cuckoo': lambda seed: cuckoo_search(func, D, lb, ub, iters=iters, n_nests=25, pa=0.25, alpha=0.5, seed=seed),
+        'Cuckoo': lambda seed: cuckoo_search(func, D, lb, ub, iters=iters, n_nests=40, pa=0.25, alpha=0.3, seed=seed),
+    
     }
 
     results = {}
@@ -245,8 +304,8 @@ def plot_boxplots(results, title):
 if __name__ == "__main__":
     # experiment configuration
     runs = 20
-    iters = 200
-    dims = [10, 30]  # change / expand to test scalability
+    iters = 400
+    dims = [2, 8, 32]  # change / expand to test scalability
 
     # For Ackley typical domain is [-32, 32]; Sphere often [-5,5]
     for D in dims:

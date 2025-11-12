@@ -6,7 +6,7 @@ def f(x):
     return np.sum((x - 1) ** 2)
 
 # Cuckoo Search visualization (for D=2)
-def cuckoo_search_2D(n=3, lb=-5, ub=5, pa=0.25, alpha=0.2, iters=30):
+def cuckoo_search_2D(n=5, lb=-5, ub=5, pa=0.25, alpha=0.2, iters=30):
     D = 2
     X = np.random.uniform(lb, ub, (n, D))
     F = np.array([f(x) for x in X])
@@ -60,10 +60,11 @@ ax.plot_surface(Xg, Yg, Zg, cmap='viridis', alpha=0.6)
 for i, path in enumerate(paths):
     path = np.array(path)
     Z = np.array([f(x) for x in path])
-    ax.plot(path[:, 0], path[:, 1], Z, marker='o', markersize=3, label=f'Cuckoo {i+1}')
+    ax.plot(path[:, 0], path[:, 1], Z, marker='o', markersize=2, label=f'Cuckoo {i+1}')
 
 # Mark best point
-ax.scatter(x_best[0], x_best[1], f_best, color='red', s=80, label='Best found')
+
+ax.scatter(x_best[0], x_best[1], f_best, color='red', s=10, label='Best found')
 ax.set_title("Cuckoo Search Path on Objective Surface (2D)")
 ax.set_xlabel("x1")
 ax.set_ylabel("x2")
@@ -73,7 +74,7 @@ plt.show()
 
 # Convergence curve
 plt.figure(figsize=(6, 4))
-plt.plot(history, color='royalblue', marker='o', linewidth=1.5)
+plt.plot(history, color='royalblue', marker='o', markersize=2, linewidth=0.5)
 plt.title("Convergence Curve of Cuckoo Search")
 plt.xlabel("Iteration")
 plt.ylabel("Best Objective Value")

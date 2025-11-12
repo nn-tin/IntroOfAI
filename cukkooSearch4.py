@@ -1,8 +1,3 @@
-"""
-Graph Coloring comparison: Hill Climbing, Genetic Algorithm, Cuckoo Search
-Each algorithm tries to minimize the number of conflicting edges.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -12,7 +7,7 @@ sns.set(style="whitegrid")
 # -------------------------
 # Graph utilities
 # -------------------------
-def random_graph(n_nodes=20, edge_prob=0.2, seed=0):
+def random_graph(n_nodes, edge_prob, seed=None):
     rnd = np.random.RandomState(seed)
     G = nx.erdos_renyi_graph(n_nodes, edge_prob, seed=seed)
     edges = list(G.edges())
@@ -20,8 +15,7 @@ def random_graph(n_nodes=20, edge_prob=0.2, seed=0):
 
 def fitness_conflicts(colors, edges):
     """Count number of conflicting edges (same color on both ends)."""
-    conflicts = sum(colors[u] == colors[v] for u, v in edges)
-    return conflicts
+    return sum(colors[u] == colors[v] for u, v in edges)
 
 # -------------------------
 # Hill Climbing
@@ -126,49 +120,89 @@ def cuckoo_search(G, edges, k_colors=4, n_nests=20, iters=300, pa=0.25, seed=Non
     return best, best_f, np.array(history)
 
 # -------------------------
+# Simulated Annealing
+# -------------------------
+def simulated_annealing(G, edges, k_colors=4, iters=500, T0=1.0, alpha=0.99, seed=None):
+    rnd = np.random.RandomState(seed)
+    n = len(G)
+    colors = rnd.randint(0, k_colors, n)
+    f = fitness_conflicts(colors, edges)
+    best = colors.copy()
+    best_f = f
+    history = [f]
+    T = T0
+
+    for _ in range(iters):
+        v = rnd.randint(0, n)
+        old_color = colors[v]
+        new_color = rnd.randint(0, k_colors)
+        colors[v] = new_color
+        f_new = fitness_conflicts(colors, edges)
+        delta = f_new - f
+        if delta < 0 or rnd.rand() < np.exp(-delta / T):
+            f = f_new
+            if f_new < best_f:
+                best = colors.copy()
+                best_f = f_new
+        else:
+            colors[v] = old_color  # reject
+        T *= alpha
+        history.append(best_f)
+    return best, best_f, np.array(history)
+
+# -------------------------
 # Run experiment
 # -------------------------
 def run_experiment():
-    G, edges = random_graph(n_nodes=40, edge_prob=0.2, seed=42)
-    k_colors = 4
-    runs = 10
+    graph_configs = [
+        {'n_nodes': 5, 'edge_prob': 0.15, 'k_colors': 3},
+        {'n_nodes': 20, 'edge_prob': 0.1, 'k_colors': 4},
+        {'n_nodes': 80, 'edge_prob': 0.08, 'k_colors': 6},
+        {'n_nodes': 100, 'edge_prob': 0.08, 'k_colors': 6},
+
+    ]
+    runs = 5
     iters = 300
     algos = {
-        "HillClimb": lambda s: hill_climbing(G, edges, k_colors, iters, s),
-        "Genetic": lambda s: genetic_algorithm(G, edges, k_colors, iters=iters, seed=s),
-        "Cuckoo": lambda s: cuckoo_search(G, edges, k_colors, iters=iters, seed=s)
+        "HillClimb": hill_climbing,
+        "Genetic": genetic_algorithm,
+        "Cuckoo": cuckoo_search,
+        "SimAnneal": simulated_annealing
     }
 
-    results = {}
-    for name, alg in algos.items():
-        all_hist = []
-        finals = []
-        for run in range(runs):
-            _, f, h = alg(run)
-            all_hist.append(h)
-            finals.append(f)
-        results[name] = {"hist": np.array(all_hist), "finals": np.array(finals)}
+    for config in graph_configs:
+        print(f"\nGraph config: Nodes={config['n_nodes']}, Edge probability={config['edge_prob']}, Colors={config['k_colors']}")
+        G, edges = random_graph(config['n_nodes'], config['edge_prob'], seed=42)
+        results = {}
+        for name, alg in algos.items():
+            all_hist = []
+            finals = []
+            for run in range(runs):
+                _, f, h = alg(G, edges, k_colors=config['k_colors'], iters=iters, seed=run)
+                all_hist.append(h)
+                finals.append(f)
+            results[name] = {"hist": np.array(all_hist), "finals": np.array(finals)}
 
-    # plot convergence
-    plt.figure(figsize=(8, 5))
-    for name, data in results.items():
-        mean = data["hist"].mean(axis=0)
-        plt.plot(mean, label=name)
-    plt.xlabel("Iteration")
-    plt.ylabel("Conflicts")
-    plt.title("Graph Coloring - average convergence")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+        # Plot convergence
+        plt.figure(figsize=(8, 5))
+        for name, data in results.items():
+            mean = data["hist"].mean(axis=0)
+            plt.plot(mean, label=name)
+        plt.xlabel("Iteration")
+        plt.ylabel("Conflicts")
+        plt.title(f"Graph Coloring - average convergence (Nodes={config['n_nodes']})")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-    # boxplot
-    plt.figure(figsize=(6, 4))
-    sns.boxplot(data=[results[n]["finals"] for n in algos.keys()])
-    plt.xticks(range(len(algos)), list(algos.keys()))
-    plt.ylabel("Final conflicts")
-    plt.title("Final results (lower is better)")
-    plt.tight_layout()
-    plt.show()
+        # Boxplot final results
+        plt.figure(figsize=(6, 4))
+        sns.boxplot(data=[results[n]["finals"] for n in algos.keys()])
+        plt.xticks(range(len(algos)), list(algos.keys()))
+        plt.ylabel("Final conflicts")
+        plt.title(f"Final results (Nodes={config['n_nodes']}, lower is better)")
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":
