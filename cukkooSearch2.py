@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 def f(x):
     return np.sum((x - 1) ** 2)
 
+
 # Cuckoo Search visualization (for D=2)
 def cuckoo_search_2D(n=5, lb=-5, ub=5, pa=0.25, alpha=0.2, iters=30):
     D = 2
@@ -13,36 +14,42 @@ def cuckoo_search_2D(n=5, lb=-5, ub=5, pa=0.25, alpha=0.2, iters=30):
     best_idx = np.argmin(F)
     x_best, f_best = X[best_idx].copy(), F[best_idx]
 
-    history_best = [f_best]
+    history = [f_best]
     paths = [[x.copy()] for x in X]  # track paths of each cuckoo
 
     for _ in range(iters):
-        # Lévy flight (global search)
+        # Lévy-like global step (here simple gaussian step scaled by alpha)
         i = np.random.randint(n)
+        j = np.random.randint(n)
         levy_step = alpha * np.random.randn(D)
         X_new = np.clip(X[i] + levy_step, lb, ub)
         f_new = f(X_new)
-        if f_new < F[i]:
-            X[i], F[i] = X_new, f_new
+        if f_new < F[j]:
+            X[j], F[j] = X_new, f_new
         if f_new < f_best:
             x_best, f_best = X_new.copy(), f_new
 
-        # Local random walk (exploration)
-        j, k = np.random.choice(n, 2, replace=False)
-        if np.random.rand() < pa:
-            r = np.random.rand()
-            X_new = np.clip(X[j] + r * (X[j] - X[k]), lb, ub)
-            f_new = f(X_new)
-            if f_new < F[j]:
-                X[j], F[j] = X_new, f_new
-            if f_new < f_best:
-                x_best, f_best = X_new.copy(), f_new
+        # Local random walk (exploration) over each nest
+        for idx in range(n):
+            if np.random.rand() < pa:
+                others = [x for x in range(n) if x != idx]
+                k = np.random.choice(others)
+                r = np.random.rand()
+                X_new = np.clip(X[idx] + r * (X[idx] - X[k]), lb, ub)
+                f_new = f(X_new)
+                if f_new < F[idx]:
+                    X[idx], F[idx] = X_new, f_new
+                if f_new < f_best:
+                    x_best, f_best = X_new.copy(), f_new
 
-        history_best.append(f_best)
-        for p, pos in zip(paths, X):
-            p.append(pos.copy())
+        # record current positions for plotting paths
+        for idx in range(n):
+            paths[idx].append(X[idx].copy())
 
-    return x_best, f_best, history_best, paths
+        history.append(f_best)
+
+    return x_best, f_best, history, paths
+
 
 # Run
 x_best, f_best, history, paths = cuckoo_search_2D(iters=200)
@@ -60,11 +67,14 @@ ax.plot_surface(Xg, Yg, Zg, cmap='viridis', alpha=0.6)
 for i, path in enumerate(paths):
     path = np.array(path)
     Z = np.array([f(x) for x in path])
-    ax.plot(path[:, 0], path[:, 1], Z, marker='o', markersize=2, label=f'Cuckoo {i+1}')
+    # Only label first 3 cuckoos to avoid huge legend; others use nolegend token
+    label = f'Cuckoo {i+1}' if i < 3 else '_nolegend_'
+    ax.plot(path[:, 0], path[:, 1], Z, marker='o', markersize=2, label=label)
 
 # Mark best point
-
 ax.scatter(x_best[0], x_best[1], f_best, color='red', s=10, label='Best found')
+# Use fixed location to avoid expensive "best" search
+ax.legend(loc='upper right')
 ax.set_title("Cuckoo Search Path on Objective Surface (2D)")
 ax.set_xlabel("x1")
 ax.set_ylabel("x2")

@@ -5,8 +5,12 @@ import matplotlib.pyplot as plt
 def f(x):
     return np.sum((x - 1) ** 2)
 
-# Simple Cuckoo Search (one run)
-def cuckoo_search(n=3, D=5, lb=-5, ub=5, pa=0.25, alpha=0.3, iters=50):
+import numpy as np
+
+def cuckoo_search(f, n=3, D=5, lb=-5, ub=5, pa=0.25, alpha=0.3, iters=50):
+    """
+    Simple Cuckoo Search with local random walk applied to each nest individually.
+    """
     X = np.random.uniform(lb, ub, (n, D))
     F = np.array([f(x) for x in X])
     best_idx = np.argmin(F)
@@ -16,31 +20,36 @@ def cuckoo_search(n=3, D=5, lb=-5, ub=5, pa=0.25, alpha=0.3, iters=50):
     for _ in range(iters):
         # Lévy flight (global search)
         i = np.random.randint(n)
+        j = np.random.randint(n)
+
         levy_step = alpha * np.random.randn(D)
         X_new = np.clip(X[i] + levy_step, lb, ub)
         f_new = f(X_new)
-        if f_new < F[i]:
-            X[i], F[i] = X_new, f_new
+        if f_new < F[j]:
+            X[j], F[j] = X_new, f_new
         if f_new < f_best:
             x_best, f_best = X_new.copy(), f_new
 
-        # Local random walk (exploration)
-        j, k = np.random.choice(n, 2, replace=False)
-        if np.random.rand() < pa:
-            r = np.random.rand()
-            X_new = np.clip(X[j] + r * (X[j] - X[k]), lb, ub)
-            f_new = f(X_new)
-            if f_new < F[j]:
-                X[j], F[j] = X_new, f_new
-            if f_new < f_best:
-                x_best, f_best = X_new.copy(), f_new
+        # Local random walk (exploration) over each nest
+        for idx in range(n):
+            if np.random.rand() < pa:
+                others = [x for x in range(n) if x != idx]
+                k = np.random.choice(others)
+                r = np.random.rand()
+                X_new = np.clip(X[idx] + r * (X[idx] - X[k]), lb, ub)
+                f_new = f(X_new)
+                if f_new < F[idx]:
+                    X[idx], F[idx] = X_new, f_new
+                if f_new < f_best:
+                    x_best, f_best = X_new.copy(), f_new
 
         history.append(f_best)
 
     return x_best, f_best, history
 
+
 # Run one case
-x_best, f_best, history = cuckoo_search(iters=500)
+x_best, f_best, history = cuckoo_search(f, iters=200)
 
 # Convergence curve
 plt.figure(figsize=(6, 4))

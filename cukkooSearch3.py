@@ -178,10 +178,10 @@ def genetic_algorithm(func, D, lb, ub, iters=200, pop_size=30, cx_rate=0.6, mut_
 
 def cuckoo_search(func, D, lb, ub, iters=200, n_nests=20, pa=0.25, alpha=0.5, seed=None):
     """
-    Simplified Cuckoo Search:
-    - nests = population
-    - levy flight approximated by Gaussian scaled by alpha
+    Simplified Cuckoo Search (fixed):
+    - levy-like gaussian step
     - discovery: replace fraction pa of worst nests with new random nests
+    - proper best / fitness updates
     """
     rnd = np.random.RandomState(seed)
     nests = rnd.uniform(lb, ub, (n_nests, D))
@@ -192,13 +192,15 @@ def cuckoo_search(func, D, lb, ub, iters=200, n_nests=20, pa=0.25, alpha=0.5, se
     history = [best_f]
 
     for _ in range(iters):
-        # For each cuckoo (we generate one new solution by levy/gau)
+        # generate new solutions (one per nest) and try to replace random nests
         for i in range(n_nests):
-            step = alpha * rnd.normal(0, 1, D)  # simplified levy-like step
-            new = nests[i] + step * (nests[i] - best)  # bias towards difference
+            # levy-like step approximated by gaussian scaled by alpha
+            step = alpha * rnd.normal(0, 1, D)
+            new = nests[i] + step * (nests[i] - best)   # bias toward exploration around current nest and best
             new = np.clip(new, lb, ub)
             f_new = func(new)
-            # random nest j to compare
+
+            # compare with a random nest j
             j = rnd.randint(0, n_nests)
             if f_new < fitness[j]:
                 nests[j] = new
@@ -207,12 +209,22 @@ def cuckoo_search(func, D, lb, ub, iters=200, n_nests=20, pa=0.25, alpha=0.5, se
                     best = new.copy()
                     best_f = f_new
 
-        # discovery: replace worst pa fraction with random new solutions
-        K = max(1, int(pa * n_nests))
-        worst_idx = np.argsort(fitness)[-K:]
-        nests[worst_idx] = rnd.uniform(lb, ub, (K, D))
-        fitness[worst_idx] = np.array([func(ind) for ind in nests[worst_idx]])
-        # update best
+        # Discovery: replace a fraction pa of worst nests with new random solutions
+        if pa > 0:
+            num_replace = int(np.ceil(pa * n_nests))
+            if num_replace > 0:
+                worst_idx = np.argsort(fitness)[-num_replace:]
+                new_nests = rnd.uniform(lb, ub, (num_replace, D))
+                nests[worst_idx] = new_nests
+                fitness[worst_idx] = np.array([func(ind) for ind in new_nests])
+
+                # update global best if needed
+                cur_best_idx = np.argmin(fitness)
+                if fitness[cur_best_idx] < best_f:
+                    best_f = fitness[cur_best_idx]
+                    best = nests[cur_best_idx].copy()
+
+        # ensure best is up-to-date
         cur_best_idx = np.argmin(fitness)
         if fitness[cur_best_idx] < best_f:
             best_f = fitness[cur_best_idx]
@@ -221,7 +233,6 @@ def cuckoo_search(func, D, lb, ub, iters=200, n_nests=20, pa=0.25, alpha=0.5, se
         history.append(best_f)
 
     return best, best_f, np.array(history)
-
 
 # -------------------------
 # Experiment driver
